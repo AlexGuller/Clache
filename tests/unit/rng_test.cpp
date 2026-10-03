@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <numeric>
+#include <stdexcept>
 #include <vector>
 
 #include <gtest/gtest.h>

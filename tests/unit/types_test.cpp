@@ -1,6 +1,7 @@
 #include "clache/types.h"
 
 #include <set>
+#include <stdexcept>
 #include <string>
 
 #include <gtest/gtest.h>

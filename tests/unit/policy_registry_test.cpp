@@ -1,5 +1,8 @@
 #include <algorithm>
+#include <cmath>
 #include <memory>
+#include <stdexcept>
+#include <string>
 
 #include <gtest/gtest.h>
 
