@@ -9,6 +9,8 @@
 #include "clache/check.h"
 #include "clache/engine.h"
 
+#include "telemetry/decision_log.h"
+
 namespace clache {
 namespace {
 void validate_private(const EngineConfig& c) {
@@ -171,28 +173,8 @@ struct CacheEngine::Impl {
   }
   void record(SlotId slot, Decision decision, TimePoint now, std::uint64_t needed = 0) {
     ++stats.by_decision[static_cast<std::size_t>(decision)];
-    if (!sink || (decision == Decision::Hit && !config.telemetry.sample_hits) ||
-        !should_sample(meta[slot].last_access_seq, config.seed,
-                       config.telemetry.decision_sample_rate))
-      return;
-    const auto& m = meta[slot];
-    DecisionRecord r;
-    r.seq = m.last_access_seq;
-    r.now = now;
-    r.key = m.key;
-    r.decision = decision;
-    r.policy = policy->name();
-    r.candidate_value =
-        std::isnan(plan.candidate_value) ? policy->value(slot, now) : plan.candidate_value;
-    r.threshold_value = plan.threshold_value;
-    r.frequency_rps = freq.rate(m.freq, now);
-    r.miss_cost_ms = cost.estimate_ms(m.cost);
-    r.size_bytes = m.charged_bytes;
-    r.bytes_needed = needed;
-    r.victim_count = static_cast<std::uint32_t>(removed.size());
-    std::copy_n(removed.begin(), std::min(removed.size(), r.victims_head.size()),
-                r.victims_head.begin());
-    sink->record(r);
+    detail::emit_decision(sink, config, meta[slot], freq, cost, *policy, slot, plan, decision, now,
+                          needed, removed);
   }
 };
 CacheEngine::CacheEngine(EngineConfig config, std::string_view name, const PolicyConfig& pc,
@@ -267,10 +249,12 @@ AdmissionResult CacheEngine::complete_miss(KeyId key, std::uint64_t size, double
       else {
         p.policy->plan_admission(slot, needed, now, p.plan);
         if (!p.plan.admit) {
-          CLACHE_REQUIRE(p.plan.victims.empty() && is_reject(p.plan.decision),
-                         "invalid rejection plan");
+          CLACHE_REQUIRE(
+              p.plan.victims.empty() && p.plan.victim_bytes == 0 && is_reject(p.plan.decision),
+              "invalid rejection plan");
           decision = p.plan.decision;
         } else {
+          CLACHE_REQUIRE(is_admit(p.plan.decision), "invalid admission decision");
           std::unordered_set<SlotId> distinct;
           std::uint64_t total = 0;
           for (SlotId v : p.plan.victims) {

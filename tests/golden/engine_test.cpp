@@ -137,6 +137,40 @@ TEST(EngineGolden, RejectInvalidConfiguration) {
   EXPECT_THROW(CacheEngine(config(), "lru", pc), std::invalid_argument);
   EXPECT_THROW(CacheEngine(config(), "unknown", {}), std::invalid_argument);
 }
+class InvalidPlanPolicy final : public Policy {
+ public:
+  explicit InvalidPlanPolicy(bool admit) : admit_(admit) {}
+  std::string_view name() const override { return "invalid_plan"; }
+  void on_hit(SlotId, TimePoint) override {}
+  void on_insert(SlotId, TimePoint) override {}
+  void on_remove(SlotId, RemovalReason) override {}
+  std::uint64_t metadata_bytes() const override { return 0; }
+  void plan_admission(SlotId, std::uint64_t, TimePoint, AdmissionPlan& plan) override {
+    plan.admit = admit_;
+    plan.decision = Decision::RejectPolicy;
+    plan.victim_bytes = 1;
+  }
+
+ private:
+  bool admit_;
+};
+TEST(EngineGolden, InvalidPolicyPlanDoesNotRemoveResidents) {
+  register_policy("invalid_admission", [](const PolicyConfig&, const PolicyContext&) {
+    return std::make_unique<InvalidPlanPolicy>(true);
+  });
+  register_policy("invalid_rejection", [](const PolicyConfig&, const PolicyContext&) {
+    return std::make_unique<InvalidPlanPolicy>(false);
+  });
+  for (auto name : {"invalid_admission", "invalid_rejection"}) {
+    CacheEngine e(config(), name, {});
+    ASSERT_TRUE(load(e, 1, 100, 1).admitted);
+    auto result = e.lookup(2, at(2));
+    EXPECT_THROW(e.complete_miss(2, 50, 1, {}, result.generation, at(2)), std::logic_error);
+    EXPECT_EQ(e.bytes_resident(), 100);
+    EXPECT_TRUE(e.explain(1, at(2))->resident);
+    e.abort_miss(2, at(2));
+  }
+}
 TEST(EngineGolden, TimeAndMissingLoadContracts) {
   CacheEngine e(config(), "lru", {});
   e.observe_cost_hint(1, 2, at(2));
