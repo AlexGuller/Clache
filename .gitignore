@@ -1,1 +1,13 @@
-Spec.md
+/Spec.md
+
+# Build output
+/build/
+/cmake-build-*/
+compile_commands.json
+.cache/
+.DS_Store
+
+# Generated traces (metadata sidecars are kept)
+/benchmarks/traces/*
+!/benchmarks/traces/.gitkeep
+!/benchmarks/traces/*.meta.json
