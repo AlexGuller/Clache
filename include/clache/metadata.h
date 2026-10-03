@@ -88,6 +88,11 @@ class MetadataStore {
   bool check_invariants() const;
 
  private:
+  void unlink_observation(SlotId slot);
+  void touch_observation(SlotId slot);
+  void drop_observation(SlotId slot);
+  bool stale(SlotId slot, TimePoint now) const;
+
   ObservationConfig config_;
   std::vector<EntryMetadata> slots_;
   std::unordered_map<KeyId, SlotId> index_;
