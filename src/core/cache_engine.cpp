@@ -58,7 +58,7 @@ struct CacheEngine::Impl {
       ++stats.heap_rebuilds;
     }
     last = now;
-    if (!request) policy->on_access(kNoSlot, now);
+    if (!request && policy->name().starts_with("clache")) policy->on_access(kNoSlot, now);
     expired.clear();
     removed.clear();
   }
