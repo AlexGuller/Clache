@@ -1,5 +1,7 @@
 #include "clache/engine.h"
 
+#include <limits>
+
 #include <gtest/gtest.h>
 
 namespace clache {
@@ -82,6 +84,58 @@ TEST(EngineGolden, DeferredExpiryDeliveredByNextLookup) {
   EXPECT_EQ(result.expired[0], 1);
   e.abort_miss(3, at(3));
   EXPECT_TRUE(e.check_invariants(at(3)));
+}
+TEST(EngineGolden, RejectInvalidConfiguration) {
+  auto expect_bad = [](EngineConfig c) {
+    EXPECT_THROW(CacheEngine(c, "lru", {}), std::invalid_argument);
+  };
+  auto c = config();
+  c.capacity_bytes = 0;
+  expect_bad(c);
+  c = config();
+  c.frequency.bucket_seconds = 0;
+  expect_bad(c);
+  c = config();
+  c.frequency.window_seconds = 299;
+  expect_bad(c);
+  c = config();
+  c.frequency.window_seconds = 540;
+  expect_bad(c);
+  c = config();
+  c.frequency.mode = FrequencyConfig::Mode::ForwardDecay;
+  c.frequency.decay_tau_seconds = 0;
+  expect_bad(c);
+  c = config();
+  c.miss_cost.ewma_alpha = std::numeric_limits<double>::quiet_NaN();
+  expect_bad(c);
+  c = config();
+  c.miss_cost.min_ms = 0;
+  expect_bad(c);
+  c = config();
+  c.miss_cost.max_ms = 0;
+  expect_bad(c);
+  c = config();
+  c.miss_cost.default_ms = std::numeric_limits<double>::infinity();
+  expect_bad(c);
+  c = config();
+  c.miss_cost.min_samples = 0;
+  expect_bad(c);
+  c = config();
+  c.admission.min_observations = 0;
+  expect_bad(c);
+  c = config();
+  c.value.size_exponent = 3;
+  expect_bad(c);
+  c = config();
+  c.telemetry.decision_sample_rate = -1;
+  expect_bad(c);
+  PolicyConfig pc;
+  pc.tinylfu.window_fraction = 1;
+  EXPECT_THROW(CacheEngine(config(), "lru", pc), std::invalid_argument);
+  pc = {};
+  pc.redis.samples = 0;
+  EXPECT_THROW(CacheEngine(config(), "lru", pc), std::invalid_argument);
+  EXPECT_THROW(CacheEngine(config(), "unknown", {}), std::invalid_argument);
 }
 TEST(EngineGolden, TimeAndMissingLoadContracts) {
   CacheEngine e(config(), "lru", {});
