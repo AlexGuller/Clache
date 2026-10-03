@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <map>
 #include <set>
@@ -175,7 +176,9 @@ TEST(IndexedMinHeap, MatchesOrderedSetModel) {
       }
 
       ASSERT_EQ(heap.size(), model.size());
-      if (!model.empty()) ASSERT_EQ(heap.top().slot, std::get<3>(*model.begin()));
+      if (!model.empty()) {
+        ASSERT_EQ(heap.top().slot, std::get<3>(*model.begin()));
+      }
       if (op % 97 == 0) {
         ASSERT_TRUE(heap.check_invariants());
         std::vector<SlotId> expected;
