@@ -242,13 +242,13 @@ def plot(summary, output):
         print('warning: matplotlib unavailable; tables produced, plots skipped', file=sys.stderr)
         return
     for workload, domain in sorted({(r['workload'], r['domain']) for r in summary}):
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10, 5))
         subset = [r for r in summary if (r['workload'], r['domain']) == (workload, domain)]
         for policy in sorted({r['policy'] for r in subset}):
             points = sorted((r['capacity_fraction'], r['total_miss_cost_us']) for r in subset if r['policy'] == policy)
             ax.plot([p[0] for p in points], [p[1] for p in points], marker='o', label=policy)
         ax.set(xscale='log', xlabel='Capacity / working set', ylabel='Median total miss cost (µs)', title=f'{workload} / {domain}')
-        ax.legend(fontsize='small')
+        ax.legend(fontsize='small', loc='upper left', bbox_to_anchor=(1.02, 1), borderaxespad=0)
         fig.tight_layout()
         # Hex encoding makes arbitrary domain/workload names safe and collision-free.
         filename = f'{workload.encode().hex()}-{domain.encode().hex()}.png'
