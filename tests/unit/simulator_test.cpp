@@ -31,6 +31,33 @@ Options options() {
   o.warmup_fraction = 0;
   return o;
 }
+TEST(Simulator, TinyLfuSketchUsesTraceSizesAndChargedOverhead) {
+  auto o = options();
+  o.policies = {"wtinylfu"};
+  o.capacities = {65536};
+  const auto tiny = trace({{0, 1, 1, 100}, {1, 1, 1, 100}});
+  const auto large = trace({{0, 1, 4096, 100}, {1, 1, 4096, 100}});
+  const auto tiny_result = simulate(tiny, prepass(tiny), o).at(0);
+  const auto large_result = simulate(large, prepass(large), o).at(0);
+  // Equal resident and metadata counts isolate the sketch allocation. Two
+  // bytes per sketch column: widths 65536 versus 16 for these object sizes.
+  EXPECT_EQ(tiny_result.metadata_peak - large_result.metadata_peak, 2U * (65536U - 16U));
+  o.overhead = 4095;
+  const auto charged = simulate(tiny, prepass(tiny), o).at(0);
+  EXPECT_EQ(charged.metadata_peak, large_result.metadata_peak);
+  EXPECT_NE(tiny_result.fingerprint, large_result.fingerprint);
+}
+
+TEST(Simulator, DeleteAdvancesExpiryCountersWithoutArtificialRequests) {
+  const auto t =
+      trace({{0, 1, 1, 100, 1}, {0, 2, 1, 100, 1}, {2000000000, 99, 0, 0, 0, 0, TraceOp::Del}});
+  auto o = options();
+  const auto r = simulate(t, prepass(t), o).at(0);
+  EXPECT_EQ(r.metrics.requests, 2U);
+  EXPECT_EQ(r.counters.expirations, 2U);
+  EXPECT_EQ(r.counters.invalidations, 0U);
+}
+
 TEST(Simulator, PrepassUsesMaximumSizeAndGetCounts) {
   const auto t = trace(
       {{0, 1, 4, 10}, {1, 1, 8, 20}, {2, 2, 2, 30, 0, 2}, {3, 99, 0, 100, 0, 3, TraceOp::Del}});

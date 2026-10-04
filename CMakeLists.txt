@@ -26,6 +26,26 @@ include(Sanitizers)    # must come before any target is defined
 include(Warnings)
 include(Dependencies)
 
+# Pin provenance at configure time, never from the executable's working directory.
+# Reconfigure after changing the source revision before collecting measurements.
+set(CLACHE_SOURCE_REVISION "unknown")
+find_package(Git QUIET)
+if(Git_FOUND)
+  execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    OUTPUT_VARIABLE CLACHE_GIT_REVISION OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET RESULT_VARIABLE CLACHE_GIT_RESULT)
+  if(CLACHE_GIT_RESULT EQUAL 0)
+    set(CLACHE_SOURCE_REVISION "${CLACHE_GIT_REVISION}")
+    execute_process(COMMAND "${GIT_EXECUTABLE}" diff --quiet HEAD --
+      WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+      RESULT_VARIABLE CLACHE_GIT_DIRTY ERROR_QUIET)
+    if(NOT CLACHE_GIT_DIRTY EQUAL 0)
+      string(APPEND CLACHE_SOURCE_REVISION "-dirty")
+    endif()
+  endif()
+endif()
+
 add_subdirectory(src)
 add_subdirectory(apps)
 

@@ -100,27 +100,30 @@ ClacheConfig effective(const Options& o, const std::string& policy, std::uint64_
   }
   return c;
 }
-std::uint64_t fingerprint(const ClacheConfig& c, const Options& o, const std::string& policy) {
+std::uint64_t fingerprint(const ClacheConfig& c, const Options& o, const std::string& policy,
+                          std::uint64_t expected_entries) {
   // All sim.* entries sort after the clache.* and policy.* registry entries.
   return hash64(canonical_config(c) + "sim.cost_oracle=" + (o.cost_oracle ? "true\n" : "false\n") +
                 "sim.domain_by=" + (o.regional ? "region\n" : "none\n") +
+                "sim.expected_entries=" + std::to_string(expected_entries) + "\n" +
                 "sim.per_entry_overhead=" + std::to_string(o.overhead) + "\nsim.policy=" + policy +
                 "\nsim.warmup_fraction=" + real(o.warmup_fraction) + "\n");
 }
 Result replay(const Trace& t, const Options& o, const std::string& policy, std::uint64_t capacity,
               const std::string& domain, const std::vector<std::size_t>& indices,
-              double capacity_fraction) {
+              double capacity_fraction, std::uint64_t expected_entries) {
   Result r;
   r.policy = policy;
   r.domain = domain;
   r.capacity = capacity;
   r.capacity_fraction = capacity_fraction;
   const auto config = effective(o, policy, capacity);
-  r.fingerprint = fingerprint(config, o, policy);
+  r.fingerprint = fingerprint(config, o, policy, expected_entries);
   LogSink sink;
   sink.domain = domain;
   sink.capacity = capacity;
-  CacheEngine engine(config.engine, policy, config.policy, o.decisions.empty() ? nullptr : &sink);
+  CacheEngine engine(config.engine, policy, config.policy, o.decisions.empty() ? nullptr : &sink,
+                     expected_entries);
   const auto cutoff = static_cast<std::size_t>(static_cast<double>(t.size()) * o.warmup_fraction);
   EngineStats before;
   std::uint64_t measured_records = 0;
@@ -262,6 +265,16 @@ std::vector<Result> simulate(const Trace& trace, const TraceStats& stats, const 
       throw std::invalid_argument("unknown policy: " + policy);
     for (const auto& capacity : capacities) (void)effective(o, policy, capacity.first);
   }
+  const auto expected_entries = [&](std::uint64_t capacity) -> std::uint64_t {
+    if (stats.unique_keys == 0) return 0;
+    const long double mean_charged =
+        static_cast<long double>(stats.working_set_bytes) / stats.unique_keys + o.overhead;
+    const long double estimate = static_cast<long double>(capacity) / mean_charged;
+    // Clamp before converting: platforms with double-width long double can
+    // round UINT64_MAX to 2^64. A trace GET always charges at least one byte.
+    if (estimate >= static_cast<long double>(capacity)) return capacity;
+    return std::max<std::uint64_t>(1, static_cast<std::uint64_t>(estimate));
+  };
   std::map<std::string, std::vector<std::size_t>> domains;
   if (!o.regional)
     domains["ALL"] = {};
@@ -300,7 +313,7 @@ std::vector<Result> simulate(const Trace& trace, const TraceStats& stats, const 
           const auto& task = tasks[i];
           try {
             results[i] = replay(trace, o, task.policy, task.capacity, task.domain, *task.indices,
-                                task.capacity_fraction);
+                                task.capacity_fraction, expected_entries(task.capacity));
           } catch (...) {
             errors[i] = std::current_exception();
           }

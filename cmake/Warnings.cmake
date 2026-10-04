@@ -31,6 +31,10 @@ endfunction()
 # Warnings plus project-wide compile definitions.
 function(clache_common_target_settings target)
   clache_set_warnings(${target})
+  target_compile_definitions(${target} PRIVATE
+    CLACHE_BUILD_VERSION="${PROJECT_VERSION}"
+    CLACHE_BUILD_GIT_SHA="${CLACHE_SOURCE_REVISION}"
+    CLACHE_GIT_SHA="${CLACHE_SOURCE_REVISION}")
   # Invariant checks: on when requested explicitly, and always in Debug.
   target_compile_definitions(${target} PRIVATE
     $<$<OR:$<BOOL:${CLACHE_CHECK_INVARIANTS}>,$<CONFIG:Debug>>:CLACHE_CHECK_INVARIANTS=1>)
