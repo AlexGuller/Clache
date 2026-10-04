@@ -4,6 +4,7 @@
 #include <map>
 #include <set>
 #include <stdexcept>
+#include <string>
 #include <unordered_set>
 
 #include "clache/check.h"
@@ -13,67 +14,18 @@
 
 namespace clache {
 namespace {
-void validate_private(const EngineConfig& c) {
-  auto require = [](bool condition, const char* message) {
-    if (!condition) throw std::invalid_argument(message);
-  };
-  auto finite = [](double value) { return std::isfinite(value); };
-  require(c.capacity_bytes > 0, "capacity_bytes must be positive");
-  require(c.frequency.mode == FrequencyConfig::Mode::RollingBuckets ||
-              c.frequency.mode == FrequencyConfig::Mode::ForwardDecay,
-          "unknown frequency mode");
-  if (c.frequency.mode == FrequencyConfig::Mode::RollingBuckets) {
-    require(c.frequency.bucket_seconds > 0 && c.frequency.window_seconds > 0,
-            "frequency window and bucket must be positive");
-    require(c.frequency.window_seconds % c.frequency.bucket_seconds == 0 &&
-                c.frequency.window_seconds / c.frequency.bucket_seconds <= kMaxBuckets,
-            "frequency window must contain one to eight whole buckets");
-  } else {
-    require(finite(c.frequency.decay_tau_seconds) && c.frequency.decay_tau_seconds > 0,
-            "decay_tau_seconds must be finite and positive");
-  }
-  require(
-      finite(c.miss_cost.ewma_alpha) && c.miss_cost.ewma_alpha > 0 && c.miss_cost.ewma_alpha <= 1,
-      "ewma_alpha must be in (0,1]");
-  require(finite(c.miss_cost.min_ms) && c.miss_cost.min_ms > 0,
-          "min_ms must be finite and positive");
-  require(finite(c.miss_cost.max_ms) && c.miss_cost.max_ms >= c.miss_cost.min_ms,
-          "max_ms must be finite and at least min_ms");
-  require(finite(c.miss_cost.default_ms) && c.miss_cost.default_ms >= c.miss_cost.min_ms &&
-              c.miss_cost.default_ms <= c.miss_cost.max_ms,
-          "default_ms must be inside cost bounds");
-  require(c.miss_cost.min_samples > 0, "min_samples must be positive");
-  require(c.admission.min_observations > 0, "min_observations must be positive");
-  require(finite(c.value.size_exponent) && c.value.size_exponent >= 0 && c.value.size_exponent <= 2,
-          "size_exponent must be in [0,2]");
-  require(finite(c.telemetry.decision_sample_rate) && c.telemetry.decision_sample_rate >= 0 &&
-              c.telemetry.decision_sample_rate <= 1,
-          "decision_sample_rate must be in [0,1]");
-}
-void validate_private(const PolicyConfig& c) {
-  auto require = [](bool condition, const char* message) {
-    if (!condition) throw std::invalid_argument(message);
-  };
-  auto fraction = [](double value) { return std::isfinite(value) && value > 0 && value < 1; };
-  require(c.clache.admission_rule == ClachePolicyConfig::AdmissionRule::Strict ||
-              c.clache.admission_rule == ClachePolicyConfig::AdmissionRule::Always,
-          "unknown Clache admission rule");
-  require(c.gdsf.frequency_source == GdsfPolicyConfig::FrequencySource::ResidentCount ||
-              c.gdsf.frequency_source == GdsfPolicyConfig::FrequencySource::EngineWindow,
-          "unknown GDSF frequency source");
-  require(
-      std::isfinite(c.gdsf.size_exponent) && c.gdsf.size_exponent >= 0 && c.gdsf.size_exponent <= 2,
-      "GDSF size_exponent must be in [0,2]");
-  require(fraction(c.tinylfu.window_fraction) && fraction(c.tinylfu.protected_fraction),
-          "TinyLFU fractions must be in (0,1)");
-  require(fraction(c.s3fifo.small_fraction), "S3FIFO small_fraction must be in (0,1)");
-  require(c.redis.samples > 0 && c.redis.pool_size > 0,
-          "Redis samples and pool_size must be positive");
-}
-EngineConfig normalized(EngineConfig config, std::string_view name) {
+EngineConfig normalized(EngineConfig config, std::string_view name,
+                        const PolicyConfig& policy_config) {
   if (name == "clache_decay") config.frequency.mode = FrequencyConfig::Mode::ForwardDecay;
   if (name == "clache_noghost") config.observation.max_entries = 0;
-  validate_private(config);
+  auto errors = validate(config);
+  const auto policy_errors = validate(policy_config);
+  errors.insert(errors.end(), policy_errors.begin(), policy_errors.end());
+  if (!errors.empty()) {
+    std::string message = "invalid engine configuration";
+    for (const auto& error : errors) message += "\n" + error;
+    throw std::invalid_argument(message);
+  }
   return config;
 }
 }  // namespace
@@ -87,20 +39,20 @@ struct CacheEngine::Impl {
   EngineStats stats;
   std::uint64_t bytes = 0;
   TimePoint last{};
-  TimePoint last_purge{};
   bool started = false;
   std::map<std::pair<TimePoint, SlotId>, KeyId> expiry;
   std::set<SlotId> residents;
   std::vector<KeyId> expired, removed;
   AdmissionPlan plan;
-  Impl(EngineConfig c, std::string_view name, const PolicyConfig& pc, DecisionSink* ds)
-      : config(normalized(c, name)),
+  Impl(EngineConfig c, std::string_view name, const PolicyConfig& pc, DecisionSink* ds,
+       std::uint64_t expected_entries)
+      : config(normalized(c, name, pc)),
         meta(config.observation),
         freq(config.frequency),
         cost(config.miss_cost),
         sink(ds) {
-    validate_private(pc);
-    PolicyContext context{&meta, &freq, &cost, &config, config.capacity_bytes, config.seed, 0};
+    PolicyContext context{&meta,       &freq,           &cost, &config, config.capacity_bytes,
+                          config.seed, expected_entries};
     policy = make_policy(name, pc, context);
   }
   void begin(TimePoint now, bool request = false) {
@@ -118,6 +70,7 @@ struct CacheEngine::Impl {
     if (!request && policy->name().starts_with("clache")) policy->on_access(kNoSlot, now);
     expired.clear();
     removed.clear();
+    purge(now);
   }
   void remove(SlotId slot, RemovalReason reason, TimePoint now) {
     auto& m = meta[slot];
@@ -144,7 +97,6 @@ struct CacheEngine::Impl {
     }
   }
   void purge(TimePoint now) {
-    last_purge = now;
     while (!expiry.empty() && expiry.begin()->first.first <= now) {
       SlotId slot = expiry.begin()->first.second;
       expired.push_back(meta[slot].key);
@@ -169,7 +121,7 @@ struct CacheEngine::Impl {
   void finish(TimePoint now) {
     meta.trim();
     (void)now;
-    CLACHE_ASSERT(invariants(last_purge), "cache engine invariants");
+    CLACHE_ASSERT(invariants(now), "cache engine invariants");
   }
   void record(SlotId slot, Decision decision, TimePoint now, std::uint64_t needed = 0) {
     ++stats.by_decision[static_cast<std::size_t>(decision)];
@@ -178,13 +130,12 @@ struct CacheEngine::Impl {
   }
 };
 CacheEngine::CacheEngine(EngineConfig config, std::string_view name, const PolicyConfig& pc,
-                         DecisionSink* sink)
-    : impl_(std::make_unique<Impl>(config, name, pc, sink)) {}
+                         DecisionSink* sink, std::uint64_t expected_entries)
+    : impl_(std::make_unique<Impl>(config, name, pc, sink, expected_entries)) {}
 CacheEngine::~CacheEngine() = default;
 LookupResult CacheEngine::lookup(KeyId key, TimePoint now, std::optional<std::uint64_t> expected) {
   auto& p = *impl_;
   p.begin(now, true);
-  p.purge(now);
   p.plan.reset();
   SlotId slot = p.meta.lookup_or_observe(key, now);
   auto& m = p.meta[slot];
@@ -218,7 +169,6 @@ AdmissionResult CacheEngine::complete_miss(KeyId key, std::uint64_t size, double
                                            TimePoint now) {
   auto& p = *impl_;
   p.begin(now);
-  p.purge(now);
   p.plan.reset();
   SlotId slot = p.meta.find(key);
   CLACHE_REQUIRE(slot != kNoSlot && p.meta[slot].pins > 0,
@@ -336,6 +286,7 @@ void CacheEngine::observe_cost_hint(KeyId key, double cost_ms, TimePoint now) {
   }
   p.finish(now);
 }
+std::span<const KeyId> CacheEngine::expired_keys() const noexcept { return impl_->expired; }
 const EngineStats& CacheEngine::stats() const noexcept { return impl_->stats; }
 std::uint64_t CacheEngine::capacity_bytes() const noexcept { return impl_->config.capacity_bytes; }
 std::uint64_t CacheEngine::bytes_resident() const noexcept { return impl_->bytes; }

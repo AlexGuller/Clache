@@ -69,17 +69,20 @@ struct KeyExplanation {
 
 class CacheEngine {
  public:
-  // Throws std::invalid_argument if validate(config) reports errors or the
+  // Throws std::invalid_argument with all engine/policy validation errors, or if the
   // policy name is unknown. `decisions` may be null; it must outlive the engine.
+  // expected_entries is a sizing hint for policies (e.g. TinyLFU); zero selects
+  // their fallback estimate. Existing three/four-argument callers remain valid.
   CacheEngine(EngineConfig config, std::string_view policy_name, const PolicyConfig& policy_config,
-              DecisionSink* decisions = nullptr);
+              DecisionSink* decisions = nullptr, std::uint64_t expected_entries = 0);
   ~CacheEngine();
   CacheEngine(const CacheEngine&) = delete;
   CacheEngine& operator=(const CacheEngine&) = delete;
 
   // `now` must be non-decreasing across all non-const calls; otherwise
   // std::invalid_argument. Returned spans point into engine-owned scratch and
-  // stay valid until the next non-const call.
+  // stay valid until the next non-const call. Every mutating operation purges
+  // expired residents before applying its requested action.
 
   // Step 1 of a request: purge expired, record the access, report hit/miss.
   // `expected_bytes` (charged) lets the simulator detect size changes. On a
@@ -94,15 +97,23 @@ class CacheEngine {
                                 std::optional<Nanos> ttl, std::uint32_t generation, TimePoint now);
 
   // Releases the pin taken by a missing lookup() whose load failed. No
-  // telemetry is recorded.
+  // access/cost telemetry is recorded; expiry counters can still advance.
   void abort_miss(KeyId key, TimePoint now);
 
   // Removes the resident (if any), bumps the generation, resets cost state.
-  // Returns the removed key (0 or 1 entries) for storage erasure.
+  // Returns the invalidated key (0 or 1 entries) for storage erasure. Keys
+  // expired first, including the target if expired, appear in expired_keys().
   std::span<const KeyId> invalidate(KeyId key, TimePoint now);
 
   // Applies a cost observation without recording an access.
   void observe_cost_hint(KeyId key, double cost_ms, TimePoint now);
+
+  // Keys purged at the start of the latest mutating call. In particular, callers
+  // must erase these from storage after invalidate(), observe_cost_hint(), and
+  // abort_miss(), whose return values do not report expiry. Same list as the
+  // expired span returned by lookup()/complete_miss(). The span remains valid
+  // until the next non-const call or engine destruction; initially empty.
+  std::span<const KeyId> expired_keys() const noexcept;
 
   const EngineStats& stats() const noexcept;
   std::uint64_t capacity_bytes() const noexcept;
