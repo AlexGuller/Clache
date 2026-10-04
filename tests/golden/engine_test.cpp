@@ -155,13 +155,13 @@ class InvalidPlanPolicy final : public Policy {
   bool admit_;
 };
 TEST(EngineGolden, InvalidPolicyPlanDoesNotRemoveResidents) {
-  register_policy("invalid_admission", [](const PolicyConfig&, const PolicyContext&) {
+  register_policy("test_invalid_admission", [](const PolicyConfig&, const PolicyContext&) {
     return std::make_unique<InvalidPlanPolicy>(true);
   });
-  register_policy("invalid_rejection", [](const PolicyConfig&, const PolicyContext&) {
+  register_policy("test_invalid_rejection", [](const PolicyConfig&, const PolicyContext&) {
     return std::make_unique<InvalidPlanPolicy>(false);
   });
-  for (auto name : {"invalid_admission", "invalid_rejection"}) {
+  for (auto name : {"test_invalid_admission", "test_invalid_rejection"}) {
     CacheEngine e(config(), name, {});
     ASSERT_TRUE(load(e, 1, 100, 1).admitted);
     auto result = e.lookup(2, at(2));
