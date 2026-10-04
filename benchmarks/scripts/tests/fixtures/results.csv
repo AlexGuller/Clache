@@ -1,0 +1,5 @@
+clache_version,git_sha,trace_path,trace_fingerprint,config_fingerprint,policy,domain,capacity_bytes,capacity_fraction,working_set_bytes,seed,warmup_requests,requests,hits,misses,hit_rate,byte_hit_rate,total_miss_cost_us,cost_hit_rate,admissions,rejections,evictions,expirations,invalidations,size_changes,mean_victims,max_victims,metadata_bytes_peak,metadata_bytes_per_resident,ns_per_request,wall_seconds
+0,0,mixed-seed1.ctrace,0,0,lru,ALL,0,0.01,0,0,0,0,0,0,0.5,0.5,100,0.5,0,0,0,0,0,0,0,0,0,64.0,100.0,0
+0,0,mixed-seed1.ctrace,0,0,clache,ALL,0,0.01,0,0,0,0,0,0,0.5,0.5,80,0.5,0,0,0,0,0,0,0,0,0,64.0,100.0,0
+0,0,mixed-seed2.ctrace,0,0,lru,ALL,0,0.01,0,0,0,0,0,0,0.5,0.5,200,0.5,0,0,0,0,0,0,0,0,0,64.0,100.0,0
+0,0,mixed-seed2.ctrace,0,0,clache,ALL,0,0.01,0,0,0,0,0,0,0.5,0.5,160,0.5,0,0,0,0,0,0,0,0,0,64.0,100.0,0
