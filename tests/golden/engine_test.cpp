@@ -75,13 +75,17 @@ TEST(EngineGolden, LruEvictionOrderAndPins) {
   EXPECT_FALSE(e.explain(4, at(5)));
   EXPECT_TRUE(e.check_invariants(at(5)));
 }
-TEST(EngineGolden, DeferredExpiryDeliveredByNextLookup) {
+TEST(EngineGolden, ExpiryDeliveredByCostHintBeforeNextLookup) {
   CacheEngine e(config(), "lru", {});
   ASSERT_TRUE(load(e, 1, 50, 1, Nanos{1000000000}).admitted);
   e.observe_cost_hint(2, 5, at(3));
+  ASSERT_EQ(e.expired_keys().size(), 1);
+  EXPECT_EQ(e.expired_keys()[0], 1);
+  EXPECT_EQ(e.stats().expirations, 1);
+  EXPECT_TRUE(e.check_invariants(at(3)));
   auto result = e.lookup(3, at(3));
-  ASSERT_EQ(result.expired.size(), 1);
-  EXPECT_EQ(result.expired[0], 1);
+  EXPECT_TRUE(result.expired.empty());
+  EXPECT_EQ(e.stats().expirations, 1);
   e.abort_miss(3, at(3));
   EXPECT_TRUE(e.check_invariants(at(3)));
 }
