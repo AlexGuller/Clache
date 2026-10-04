@@ -77,6 +77,30 @@ TEST_F(TraceIoTest, OptionalColumnsAndRoundTrips) {
       EXPECT_THROW(loaded.at(loaded.size()), std::out_of_range);
     }
 }
+TEST_F(TraceIoTest, CsvMaximumWidthRecord) {
+  auto writer = TraceWriter::create(path(), TraceFormat::Csv, {true, true});
+  const TraceRecord maximum{std::numeric_limits<std::uint64_t>::max(),
+                            std::numeric_limits<KeyId>::max(),
+                            std::numeric_limits<std::uint32_t>::max(),
+                            std::numeric_limits<std::uint32_t>::max(),
+                            std::numeric_limits<std::uint32_t>::max(),
+                            std::numeric_limits<std::uint16_t>::max(),
+                            TraceOp::Get};
+  writer->write(maximum);
+  auto deleted = maximum;
+  deleted.op = TraceOp::Del;
+  writer->write(deleted);
+  writer->close();
+  const std::string fields =
+      "18446744073709551615,18446744073709551615,4294967295,4294967295,4294967295,65535";
+  EXPECT_EQ(contents(path()), header_ + ",region,op\n" + fields + ",get\n" + fields + ",del\n");
+  const auto loaded = load_trace(path());
+  ASSERT_EQ(loaded.size(), 2U);
+  EXPECT_EQ(loaded.at(0).timestamp_ns, maximum.timestamp_ns);
+  EXPECT_EQ(loaded.at(0).key, maximum.key);
+  EXPECT_EQ(loaded.at(0).region, maximum.region);
+  EXPECT_EQ(loaded.at(1).op, TraceOp::Del);
+}
 TEST_F(TraceIoTest, CsvValidation) {
   bad("", "0");
   bad("wrong\n", "1");
