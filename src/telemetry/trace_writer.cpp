@@ -2,7 +2,8 @@
 #include <charconv>
 #include <fstream>
 #include <limits>
-#include <string_view>
+#include <string>
+#include <system_error>
 
 #include "clache/trace.h"
 
@@ -55,31 +56,32 @@ class Writer final : public TraceWriter {
         trace_detail::fail(path_, count_ + 1, "region column required");
       if (!options_.include_op && r.op != TraceOp::Get)
         trace_detail::fail(path_, count_ + 1, "op column required");
-      std::array<char, 128> buffer{};
-      char* pos = buffer.data();
+      csv_line_.clear();
       const auto append = [&](std::uint64_t v) {
-        pos = std::to_chars(pos, buffer.data() + buffer.size(), v).ptr;
+        // Format fields independently so a failed conversion can never leave a
+        // cursor at the end of the row buffer before a separator is written.
+        std::array<char, std::numeric_limits<std::uint64_t>::digits10 + 1> digits{};
+        const auto result = std::to_chars(digits.data(), digits.data() + digits.size(), v);
+        if (result.ec != std::errc{})
+          trace_detail::fail(path_, count_ + 1, "integer formatting failure");
+        csv_line_.append(digits.data(), static_cast<std::size_t>(result.ptr - digits.data()));
       };
       append(r.timestamp_ns);
-      *pos++ = ',';
+      csv_line_ += ',';
       append(r.key);
-      *pos++ = ',';
+      csv_line_ += ',';
       append(r.size_bytes);
-      *pos++ = ',';
+      csv_line_ += ',';
       append(r.miss_cost_us);
-      *pos++ = ',';
+      csv_line_ += ',';
       append(r.ttl_s);
       if (options_.include_region) {
-        *pos++ = ',';
+        csv_line_ += ',';
         append(r.region);
       }
-      if (options_.include_op) {
-        *pos++ = ',';
-        for (char c : r.op == TraceOp::Get ? std::string_view("get") : std::string_view("del"))
-          *pos++ = c;
-      }
-      *pos++ = '\n';
-      out_.write(buffer.data(), pos - buffer.data());
+      if (options_.include_op) csv_line_ += r.op == TraceOp::Get ? ",get" : ",del";
+      csv_line_ += '\n';
+      out_.write(csv_line_.data(), static_cast<std::streamsize>(csv_line_.size()));
     }
     check();
     previous_ = r.timestamp_ns;
@@ -106,6 +108,7 @@ class Writer final : public TraceWriter {
   }
   std::filesystem::path path_;
   std::ofstream out_;
+  std::string csv_line_;
   TraceFormat format_;
   TraceWriterOptions options_;
   std::uint64_t count_ = 0, previous_ = 0;
