@@ -39,7 +39,7 @@ def trace_identity(row, source):
 
 
 def load_results(paths):
-    rows, seen = [], set()
+    rows, seen, experiments = [], set(), {}
     for path in sorted(map(Path, paths)):
         with path.open(newline='') as stream:
             reader = csv.DictReader(stream)
@@ -64,6 +64,30 @@ def load_results(paths):
                            row['policy'], row['trace_seed'])
                     if key in seen:
                         raise ValueError(f'duplicate experiment {key}; report config variants separately')
+                    # Policy scores are comparable only for the same measured trace
+                    # slice, byte budget, RNG seed and build. Effective config hashes
+                    # legitimately differ for named ablations, so are not compared.
+                    identity_fields = ('trace_fingerprint', 'clache_version', 'git_sha',
+                                       'capacity_bytes', 'working_set_bytes', 'seed',
+                                       'warmup_requests', 'requests')
+                    integer_fields = {'capacity_bytes', 'working_set_bytes', 'seed',
+                                      'warmup_requests', 'requests'}
+                    identity = {}
+                    for field in identity_fields:
+                        value = int(row[field]) if field in integer_fields else row[field]
+                        if field in integer_fields and value < 0:
+                            raise ValueError(f'{field} must be nonnegative')
+                        identity[field] = value
+                    experiment = (row['workload'], row['domain'], row['capacity_fraction'],
+                                  row['trace_seed'])
+                    previous = experiments.get(experiment)
+                    if previous is not None:
+                        different = [field for field in identity_fields
+                                     if previous[field] != identity[field]]
+                        if different:
+                            raise ValueError('incompatible experiments: ' + ', '.join(different)
+                                             + f' differ for {experiment}')
+                    experiments[experiment] = identity
                     seen.add(key)
                     rows.append(row)
                 except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:

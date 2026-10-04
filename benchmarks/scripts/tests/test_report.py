@@ -89,6 +89,33 @@ class ReportTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'duplicate experiment'):
                 report.load_results([path])
 
+    def test_rejects_incompatible_experiment_comparisons(self):
+        for field in ('trace_fingerprint', 'requests', 'warmup_requests',
+                      'capacity_bytes', 'working_set_bytes', 'seed',
+                      'git_sha', 'clache_version'):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'mismatched.csv'
+                baseline = row(policy='lru')
+                candidate = row(policy='clache', cost=1)
+                candidate[field] = '99'
+                with path.open('w', newline='') as stream:
+                    writer = csv.DictWriter(stream, report.COLUMNS, extrasaction='ignore')
+                    writer.writeheader()
+                    writer.writerows([baseline, candidate])
+                with self.assertRaisesRegex(ValueError, 'incompatible experiments: ' + field):
+                    report.load_results([path])
+
+    def test_allows_named_ablations_with_distinct_config_hashes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'ablations.csv'
+            baseline, candidate = row(policy='lru'), row(policy='clache_decay')
+            candidate['config_fingerprint'] = '99'
+            with path.open('w', newline='') as stream:
+                writer = csv.DictWriter(stream, report.COLUMNS, extrasaction='ignore')
+                writer.writeheader()
+                writer.writerows([baseline, candidate])
+            self.assertEqual(len(report.load_results([path])), 2)
+
     def test_deterministic_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
             a, b = Path(directory)/'a', Path(directory)/'b'

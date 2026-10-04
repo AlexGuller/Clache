@@ -37,7 +37,12 @@ and trace seed from `<trace_path>.meta.json`, searching the recorded path and th
 relative to the results file. Without a sidecar it accepts
 `<workload>-seed<N>.<extension>`. The CSV `seed` is the engine RNG seed; it is not
 used as the trace seed. Duplicate workload/domain/capacity/policy/trace-seed rows
-are rejected: report distinct configurations in separate invocations.
+are rejected: report distinct configurations in separate invocations. Comparisons also
+require matching trace fingerprints, request/warmup counts, byte budgets, working
+sets, engine RNG seeds, and build identities for each workload/domain/capacity/trace
+seed. Mismatches fail before reporting so incompatible runs cannot produce a PASS.
+Config fingerprints may differ for named ablations; run distinct oracle/overhead
+settings in separate reports, since those flags are not separate CSV columns.
 
 Outputs:
 
