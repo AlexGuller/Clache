@@ -1,0 +1,109 @@
+name: Policy benchmarks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/cloud-benchmarks]
+    paths:
+      - .github/workflows/benchmarks.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: policy-benchmarks-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Set only after the billing owner confirms paid Actions usage is blocked.
+    # This variable is an attestation, not a billing control itself.
+    if: vars.BENCHMARK_ZERO_COST_CONFIRMED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CC: gcc-13
+      CXX: g++-13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Release executables
+        run: |
+          cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release -DCLACHE_BUILD_TESTS=OFF -DCLACHE_BUILD_BENCHMARKS=OFF -DCLACHE_WERROR=ON
+          cmake --build build/release --parallel 2
+          tar -czf executables.tar.gz -C build/release apps/clache_sim apps/clache_tracegen CMakeCache.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: executables
+          path: executables.tar.gz
+          retention-days: 1
+
+  simulate:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        workload: [zipf, cost_inversion, variable_size, scan, hotset_shift, burst, regional_split, mixed]
+        seed: [1, 2]
+    env:
+      WORKLOADS: ${{ matrix.workload }}
+      SEEDS: ${{ matrix.seed }}
+      REQUESTS: '10000000'
+      KEYS: '1000000'
+      VARIABLE_SIZE_KEYS: '200000'
+      CAPACITY_FRACTIONS: '0.01,0.05,0.2'
+      POLICIES: clache,lru,lfu,lfu_da,gdsf,gdsf_window,wtinylfu,s3fifo,redis_lru,redis_lfu
+      JOBS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: executables
+      - name: Prepare executables and plotting
+        run: |
+          mkdir -p build/release
+          tar -xzf executables.tar.gz -C build/release
+          python3 -m venv /tmp/report-env
+          /tmp/report-env/bin/pip install matplotlib
+      - name: Replay full-length traces
+        run: |
+          export PATH="/tmp/report-env/bin:$PATH"
+          export TRACE_DIR="$RUNNER_TEMP/traces"
+          export RESULT_DIR="$PWD/results"
+          bash benchmarks/scripts/run_matrix.sh
+          cp "$TRACE_DIR"/*.meta.json results/
+      - name: Preserve completed results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.workload }}-${{ matrix.seed }}
+          path: results/
+          if-no-files-found: warn
+          retention-days: 1
+
+  report:
+    needs: simulate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+          path: collected
+      - name: Validate completeness and combine reports
+        run: |
+          python3 -m venv /tmp/report-env
+          /tmp/report-env/bin/pip install matplotlib
+          /tmp/report-env/bin/python benchmarks/scripts/check_cloud_results.py collected
+          /tmp/report-env/bin/python benchmarks/scripts/report.py collected/results-*/*-seed*.csv --out report
+          echo 'Completed 480 simulations: 8 workloads, 2 seeds, 3 capacities, 10 policies. Download policy-report for tables and plots. Timings include contention on shared cloud runners.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: policy-report
+          path: |
+            report/
+            collected/
+          retention-days: 1
