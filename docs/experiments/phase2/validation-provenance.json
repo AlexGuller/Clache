@@ -1,0 +1,26 @@
+{
+  "rows": 4760,
+  "source_sha": "0c46e28809e43fc4810bd1337c840015c8a29abb",
+  "selected_label": "clache_tuned",
+  "engine_policy": "clache_decay",
+  "overrides": [
+    "clache.frequency.decay_tau_seconds=900"
+  ],
+  "discovery_seeds": [
+    1
+  ],
+  "previously_seen_seeds": [
+    2
+  ],
+  "held_out_seeds": [
+    3,
+    4,
+    5
+  ],
+  "timing_correction": "Derived ns_per_request divides whole-replay wall time by all 10M records; raw CSVs unchanged.",
+  "limitations": [
+    "Shared-runner timings are not controlled microbenchmarks.",
+    "Equal payload capacity does not enforce equal total RAM.",
+    "Candidate tuned on discovery data; baselines use defaults."
+  ]
+}
