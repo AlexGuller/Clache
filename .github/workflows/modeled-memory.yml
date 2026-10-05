@@ -1,0 +1,67 @@
+name: Modeled memory comparison
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/modeled-memory-evaluation]
+    paths:
+      - .github/workflows/modeled-memory.yml
+permissions:
+  contents: read
+concurrency:
+  group: modeled-memory-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    if: vars.BENCHMARK_ZERO_COST_CONFIRMED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CC: gcc-13
+      CXX: g++-13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release -DCLACHE_BUILD_TESTS=OFF -DCLACHE_BUILD_BENCHMARKS=OFF -DCLACHE_WERROR=ON
+          cmake --build build/release --parallel 2
+          tar -czf executables.tar.gz -C build/release apps/clache_sim apps/clache_tracegen CMakeCache.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: executables
+          path: executables.tar.gz
+          retention-days: 1
+  diagnose:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        workload: [cost_inversion, variable_size, mixed]
+        seed: [2]
+    env:
+      WORKLOAD: ${{ matrix.workload }}
+      TRACE_SEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: executables
+      - name: Prepare
+        run: |
+          mkdir -p build/release
+          tar -xzf executables.tar.gz -C build/release
+      - name: Run diagnostic cases
+        run: |
+          python3 benchmarks/scripts/run_modeled_memory.py --workload "$WORKLOAD" --seed "$TRACE_SEED" --out diagnostics
+          cp build/release/CMakeCache.txt diagnostics/
+          lscpu > diagnostics/cpu.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: modeled-memory-${{ matrix.workload }}-${{ matrix.seed }}
+          path: |
+            diagnostics/
+            !diagnostics/**/*.ctrace
+          retention-days: 1
