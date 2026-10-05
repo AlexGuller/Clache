@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 
 POLICIES = ['clache', 'gdsf', 'wtinylfu', 's3fifo', 'redis_lfu']
+KNOWN_POLICIES = set('lru lfu lfu_da gds gdsf gdsf_window wtinylfu s3fifo redis_lru redis_lfu clache clache_decay clache_noadmit clache_noghost clache_nocost clache_nosize'.split())
 LIMITATIONS = [
     'Budget model is payload capacity plus sampled reported metadata peak, not actual RAM.',
     'Reported metadata omits resident-set allocations, free-list capacity, some scratch space and allocator overhead.',
@@ -16,6 +17,18 @@ LIMITATIONS = [
     'Capacity selection uses only metadata and budget slack; miss cost is reported only after selection.',
     'Verification repeats the same trace and configuration; it checks reproducibility, not out-of-sample generalization.',
 ]
+
+
+def parse_policies(text):
+    policies = [name.strip() for name in text.split(',')]
+    if not policies or any(not name for name in policies):
+        raise argparse.ArgumentTypeError('policies must be a nonempty comma-separated list')
+    if len(set(policies)) != len(policies):
+        raise argparse.ArgumentTypeError('policies must not contain duplicates')
+    unknown = sorted(set(policies) - KNOWN_POLICIES)
+    if unknown:
+        raise argparse.ArgumentTypeError('unknown policies: ' + ', '.join(unknown))
+    return policies
 
 
 def calibrate(budget, initial_capacity, replay, initial=None, max_replays=6):
@@ -126,7 +139,7 @@ def run(args):
     script_root = Path(__file__).resolve().parents[2]
     manifest['runner_source_sha'] = subprocess.check_output(['git', '-C', str(script_root), 'rev-parse', 'HEAD'], text=True).strip()
     records = []
-    variants = [(p,p,[]) for p in POLICIES]
+    variants = [(p,p,[]) for p in args.policies]
     if args.tuned_set:
         variants.append(('clache_tuned','clache',args.tuned_set))
     for fraction in fractions:
@@ -179,6 +192,8 @@ def main():
     parser.add_argument('--bin-dir',type=Path,default=Path('build/release/apps'))
     parser.add_argument('--out',type=Path,default=Path('build/modeled-memory'))
     parser.add_argument('--expected-source-sha')
+    parser.add_argument('--policies',type=parse_policies,default=','.join(POLICIES),
+                        help='Comma-separated known policy names; GDSF always defines the reference budget')
     parser.add_argument('--tuned-set',action='append',default=[],help='Additional labeled Clache variant; repeat dotted key=value overrides')
     args=parser.parse_args()
     try:

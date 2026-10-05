@@ -1,6 +1,8 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import subprocess
+import sys
 
 spec=importlib.util.spec_from_file_location('memory_runner',Path(__file__).resolve().parents[1]/'run_modeled_memory.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -57,6 +59,26 @@ class CalibrationTests(unittest.TestCase):
         result=m.calibrate(1000,900,replay,initial=initial)
         self.assertEqual(calls,[(900,'verification')])
         self.assertEqual(len(result['attempts']),1)
+
+
+class PolicyCliTests(unittest.TestCase):
+    def test_default_and_subset(self):
+        self.assertEqual(m.parse_policies(','.join(m.POLICIES)), m.POLICIES)
+        self.assertEqual(m.parse_policies('gdsf'), ['gdsf'])
+        self.assertEqual(m.parse_policies('clache_decay, gdsf'), ['clache_decay', 'gdsf'])
+
+    def test_invalid_policy_lists(self):
+        for text in ('', 'gdsf,', 'gdsf,gdsf', 'not_a_policy', 'clache_tuned'):
+            with self.subTest(text=text), self.assertRaises(m.argparse.ArgumentTypeError):
+                m.parse_policies(text)
+
+    def test_cli_rejects_unknown_before_running_binaries(self):
+        run = subprocess.run([sys.executable, '-B', m.__file__, '--workload', 'mixed',
+                              '--policies', 'bad_policy', '--bin-dir', '/does-not-exist'],
+                             capture_output=True, text=True)
+        self.assertEqual(run.returncode, 2)
+        self.assertIn('unknown policies: bad_policy', run.stderr)
+        self.assertNotIn('No such file', run.stderr)
 
 
 if __name__=='__main__':unittest.main()

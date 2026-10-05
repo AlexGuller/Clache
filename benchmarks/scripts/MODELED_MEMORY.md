@@ -18,9 +18,29 @@ and `--expected-source-sha` are available. Output is namespaced by workload/seed
 existing nonempty experiment directories are rejected to prevent accidental mixing.
 The generated trace remains in that directory and is reused by every replay.
 
-Comparators are default `clache`, `gdsf`, `wtinylfu`, `s3fifo`, and `redis_lfu`.
+Comparators default to `clache`, `gdsf`, `wtinylfu`, `s3fifo`, and `redis_lfu`.
+`--policies` accepts a nonempty comma-separated subset of known Phase 1 policy
+names (including registered Clache ablations); unknown or duplicate names are
+rejected before generation. GDSF always supplies the reference budget even when
+it is omitted from the selected comparison rows.
 After a tuned config has been locked independently, repeat `--tuned-set key=value`
-to add a separate `clache_tuned` row; default Clache remains present.
+to add a separate `clache_tuned` row; selected default policies remain present.
+For the locked decay candidate, compare only GDSF and tuned Clache:
+
+```sh
+python3 benchmarks/scripts/run_modeled_memory.py \
+  --workload cost_inversion --seed 3 --policies gdsf \
+  --tuned-set clache.frequency.mode=forward_decay \
+  --tuned-set clache.frequency.decay_tau_seconds=900 \
+  --bin-dir build/release/apps --out build/modeled-memory-decay900
+```
+
+The tuned output label is `clache_tuned` and `engine_policy` is `clache`.
+With these two settings it uses the same frequency estimator and score as
+`clache_decay` with tau 900 and all other knobs at defaults. The literal policy
+name participates in fingerprints, so equal scoring does not imply identical
+configuration fingerprints. The unchanged five-policy default is still used
+when `--policies` is omitted.
 
 ## Calibration
 
