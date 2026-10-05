@@ -23,3 +23,11 @@ validation outputs will be added separately; discovery alone is not proof
 of generalization. Cloud throughput timings are not controlled latency
 measurements. Original artifacts are backed up under build/ on the local
 machine and expire on GitHub after one day.
+
+Tuned sampled modeled-memory data: run37350899374, source885abb0,
+seed2 and the same GDSF reference budgets. The frozen candidate uses
+forward_decay with tau900; default GDSF is the comparator. All12 rows
+verified within1% of budget. The underlying engine policy is `clache`
+with mode explicitly configured, which has the same score/update semantics
+as the `clache_decay` alias. Source changes are experiment tooling only.
+This is a sensitivity check on a previously seen seed, not held-out proof.
