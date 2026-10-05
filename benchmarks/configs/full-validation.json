@@ -1,0 +1,13 @@
+[
+  {
+    "name": "baseline",
+    "policies": "lru,lfu,lfu_da,gds,gdsf,gdsf_window,wtinylfu,s3fifo,redis_lru,redis_lfu,clache,clache_decay,clache_noghost,clache_nocost,clache_nosize,clache_noadmit"
+  },
+  {
+    "name": "selected",
+    "policies": "clache_decay",
+    "overrides": [
+      "clache.frequency.decay_tau_seconds=900"
+    ]
+  }
+]

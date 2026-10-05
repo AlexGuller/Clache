@@ -1,0 +1,5 @@
+# Candidate selected on seed 1; validate on fresh seeds before adoption.
+clache:
+  frequency:
+    mode: forward_decay
+    decay_tau_seconds: 900

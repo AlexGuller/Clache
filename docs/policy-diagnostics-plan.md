@@ -67,3 +67,23 @@ requires no discovery cell more than 10% worse than default Clache; among
 eligible cases choose lowest equal-cell geometric mean cost ratio.
 The 1200-second window is a diagnostic near-cumulative-history control
 for these roughly 1000-second traces, not evidence of long-run adaptation.
+
+## Candidate locked before fresh-seed validation
+
+Discovery runs 37348790147 and 37349126393 completed. Matched trace
+fingerprints, byte capacities, request counts, and engine seeds across all
+24 seed-1 cells. Selected `clache_decay` with tau=900 seconds, default
+min_observations=1, strict admission, default cost and size weighting and
+ghost budget. No per-workload settings are selected.
+
+Its equal-cell geometric mean cost ratio to default Clache is 0.9284
+(7.16% reduction); worst cell is 1.0267 (2.67% regression). It passes the
+predeclared 10% per-cell regression guard. Existing decay tau300 is also
+strong (0.9348 mean, 1.0079 worst) and remains in the full comparison.
+The oracle and window1200 control are ineligible for selection. Two-hit
+probation combinations did not improve the aggregate objective.
+
+Fresh seeds3–5 have not been inspected. The candidate above is now frozen
+for all workloads/capacities/seeds. Full matrix: 16 existing policies plus
+this separately labelled candidate, 8 workloads × 7 capacities × 5 seeds
+= 4,760 replays. The standard library defaults are not changed by tuning.
