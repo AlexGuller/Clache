@@ -1,0 +1,28 @@
+[
+  {
+    "name": "warmup10-baseline",
+    "policies": "clache,clache_decay,gdsf",
+    "warmup": 0.1
+  },
+  {
+    "name": "warmup10-selected",
+    "policies": "clache_decay",
+    "warmup": 0.1,
+    "overrides": [
+      "clache.frequency.decay_tau_seconds=900"
+    ]
+  },
+  {
+    "name": "warmup30-baseline",
+    "policies": "clache,clache_decay,gdsf",
+    "warmup": 0.3
+  },
+  {
+    "name": "warmup30-selected",
+    "policies": "clache_decay",
+    "warmup": 0.3,
+    "overrides": [
+      "clache.frequency.decay_tau_seconds=900"
+    ]
+  }
+]

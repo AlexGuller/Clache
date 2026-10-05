@@ -83,7 +83,7 @@ def main():
         result = folder / f"{args.workload}-seed{args.seed}.csv"
         command = [str(bins / "clache_sim"), "--trace", str(trace),
                    "--policies", case["policies"], "--capacity-fractions", args.capacities,
-                   "--warmup-fraction", "0.2", "--jobs", str(args.jobs), "--out", str(result),
+                   "--warmup-fraction", str(case.get("warmup", 0.2)), "--jobs", str(args.jobs), "--out", str(result),
                    "--timeseries", str(folder / "timeseries.csv")]
         for override in case.get("overrides", []):
             command.extend(["--set", override])
