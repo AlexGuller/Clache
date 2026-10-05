@@ -1,0 +1,79 @@
+[
+  {
+    "name": "baseline",
+    "policies": "clache,clache_decay,clache_noadmit,clache_noghost,clache_nocost,clache_nosize,gdsf,gdsf_window,lru,lfu,lfu_da,s3fifo,wtinylfu,redis_lru,redis_lfu"
+  },
+  {
+    "name": "window-60",
+    "policies": "clache",
+    "overrides": [
+      "clache.frequency.window_seconds=60",
+      "clache.frequency.bucket_seconds=12"
+    ]
+  },
+  {
+    "name": "window-900",
+    "policies": "clache",
+    "overrides": [
+      "clache.frequency.window_seconds=900",
+      "clache.frequency.bucket_seconds=180"
+    ]
+  },
+  {
+    "name": "decay-60",
+    "policies": "clache_decay",
+    "overrides": [
+      "clache.frequency.decay_tau_seconds=60"
+    ]
+  },
+  {
+    "name": "decay-900",
+    "policies": "clache_decay",
+    "overrides": [
+      "clache.frequency.decay_tau_seconds=900"
+    ]
+  },
+  {
+    "name": "probation-2",
+    "policies": "clache",
+    "overrides": [
+      "clache.admission.min_observations=2"
+    ]
+  },
+  {
+    "name": "probation-3",
+    "policies": "clache",
+    "overrides": [
+      "clache.admission.min_observations=3"
+    ]
+  },
+  {
+    "name": "size-0.75",
+    "policies": "clache",
+    "overrides": [
+      "clache.value.size_exponent=0.75"
+    ]
+  },
+  {
+    "name": "size-1.25",
+    "policies": "clache",
+    "overrides": [
+      "clache.value.size_exponent=1.25"
+    ]
+  },
+  {
+    "name": "cost-oracle",
+    "policies": "clache,gdsf,gdsf_window",
+    "extra": [
+      "--cost-oracle"
+    ]
+  },
+  {
+    "name": "window-1200",
+    "policies": "clache",
+    "overrides": [
+      "clache.frequency.window_seconds=1200",
+      "clache.frequency.bucket_seconds=240"
+    ]
+  }
+]
