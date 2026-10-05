@@ -59,3 +59,11 @@ An independent simulator timing fix is on fix/simulator-measured-timing:
 whole-replay time must be divided by all replayed records, including warmup
 and DEL. This does not change eviction-quality metrics. Cloud timing also
 includes concurrent-worker contention and is not a microbenchmark.
+
+Before inspecting diagnostic outcomes, predeclare two interaction cases:
+window900 + min_observations2 and decay900 + min_observations2. These are
+recorded in benchmarks/configs/confirmation.json. Candidate eligibility
+requires no discovery cell more than 10% worse than default Clache; among
+eligible cases choose lowest equal-cell geometric mean cost ratio.
+The 1200-second window is a diagnostic near-cumulative-history control
+for these roughly 1000-second traces, not evidence of long-run adaptation.

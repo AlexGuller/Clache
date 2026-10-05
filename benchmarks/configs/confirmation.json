@@ -1,0 +1,19 @@
+[
+  {
+    "name": "window900-probation2",
+    "policies": "clache",
+    "overrides": [
+      "clache.frequency.window_seconds=900",
+      "clache.frequency.bucket_seconds=180",
+      "clache.admission.min_observations=2"
+    ]
+  },
+  {
+    "name": "decay900-probation2",
+    "policies": "clache_decay",
+    "overrides": [
+      "clache.frequency.decay_tau_seconds=900",
+      "clache.admission.min_observations=2"
+    ]
+  }
+]
