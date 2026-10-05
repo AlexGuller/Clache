@@ -72,13 +72,11 @@ canonical config lines are followed by sorted `sim.*` keys for cost oracle, doma
 mode, entry overhead, policy name and warm-up fraction. Job count and output paths
 are excluded. Trace fingerprints hash the original trace bytes.
 
-Build provenance uses the string macros `CLACHE_BUILD_VERSION` (fallback `0.1.0`)
-and `CLACHE_BUILD_GIT_SHA` (fallback `unknown`). The current shared CMake files do not
-supply Git metadata. A release build can supply escaped string definitions through
-`CMAKE_CXX_FLAGS`, e.g. `-DCLACHE_BUILD_GIT_SHA=\"<commit>\"`; automation should set
-this from the actual integrated source revision when configuring. The simulator
-never reads runtime working-directory Git state or invents a SHA for a source snapshot.
-Adding automatic provenance extraction belongs in a separate shared CMake change.
+CMake supplies the project version and source Git revision at configure time to
+both binaries. Modified tracked sources add a `-dirty` suffix; source archives
+without Git report `unknown`. Reconfigure after source changes before measuring.
+The simulator never reads runtime working-directory Git state. Matrix `env.json`
+records the compiler, flags, operating system, CPU and experiment parameters.
 
 ## libCacheSim export
 
@@ -97,22 +95,22 @@ The automated CLI test independently decodes the output with Python `<IQIq` and
 checks both repeated-key future positions and the -1 sentinel. Cross-tool miss-ratio
 agreement still requires running a separately installed libCacheSim binary.
 
-## Current engine limitations
+## Engine integration
 
-These are properties of the supplied engine snapshot, not simulator substitutions:
+Every mutating engine operation now purges expired entries, including deletion,
+cost hints and aborted misses. The `expired_keys()` accessor exposes expiry
+removals from the latest operation to future storage adapters. Expiry takes
+precedence over invalidation at the same timestamp.
 
-1. `CacheEngine::invalidate()` does not purge expired objects. Reproduce with a GET
-   at t=0 and TTL=1 second, followed only by DEL at t=2 seconds. The engine reports
-   invalidation, not expiration, for that key; unrelated expired keys can remain
-   resident until the next GET. The simulator forwards DEL directly, so those counters
-   reflect the current engine. No artificial accesses are injected to hide this.
-2. `CacheEngine` exposes no expected-entry-count constructor hint. The trace prepass
-   computes mean object size, but cannot pass `capacity / mean_size` to W-TinyLFU.
-   Its policy therefore uses its documented capacity/4096 fallback.
-3. The engine's private validation requires miss-cost default_ms within min_ms/max_ms.
-   Public config validation and the spec permit any nonnegative default. For example,
-   `--set clache.miss_cost.default_ms=0` passes public validation but the engine rejects
-   construction with `default_ms must be inside cost bounds`. The error propagates.
+The simulator supplies `max(1, floor(capacity / mean_charged_size))` as the policy
+entry-count hint; mean charged size is the trace prepass mean object size plus
+per-entry overhead. Empty traces retain the engine's unknown-hint fallback.
+TinyLFU therefore sizes its sketch from the trace instead of assuming 4096-byte
+objects. The hint participates in the effective config fingerprint.
+
+Engine construction now uses the same public validation functions as the parser.
+A finite nonnegative miss-cost default may be outside sample-clamping bounds;
+observed samples are still clamped independently.
 
 ## Verification
 

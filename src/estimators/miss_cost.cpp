@@ -14,9 +14,8 @@ MissCostEstimator::MissCostEstimator(const MissCostConfig& config) : config_(con
   CLACHE_REQUIRE(std::isfinite(config_.min_ms) && config_.min_ms > 0 &&
                      std::isfinite(config_.max_ms) && config_.max_ms >= config_.min_ms,
                  "cost bounds must be finite, positive and ordered");
-  CLACHE_REQUIRE(std::isfinite(config_.default_ms) && config_.default_ms >= config_.min_ms &&
-                     config_.default_ms <= config_.max_ms,
-                 "default cost must be within cost bounds");
+  CLACHE_REQUIRE(std::isfinite(config_.default_ms) && config_.default_ms >= 0,
+                 "default cost must be finite and nonnegative");
 }
 
 void MissCostEstimator::observe(CostState& state, double observed_ms) const {
