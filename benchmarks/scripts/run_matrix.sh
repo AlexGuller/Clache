@@ -52,13 +52,20 @@ for workload in $WORKLOADS; do
     output="$RESULT_DIR/$workload-seed$seed.csv"
     keys=$KEYS
     if [[ "$workload" == variable_size ]]; then keys=$VARIABLE_SIZE_KEYS; fi
-    if [[ ! -f "$trace" ]]; then
+    if [[ ! -e "$trace" && ! -L "$trace" ]]; then
+      if [[ -e "$trace.meta.json" || -L "$trace.meta.json" ]]; then
+        echo "error: refusing to overwrite orphan sidecar $trace.meta.json; use a different TRACE_DIR or explicitly replace the stale cache" >&2
+        failed=1; continue
+      fi
       if ! run "$BIN_DIR/clache_tracegen" --workload "$workload" --seed "$seed" --requests "$REQUESTS" --keys "$keys" --format bin --out "$trace"; then
         echo "error: trace generation failed: $workload seed $seed" >&2
         # The writer may have left an incomplete file; never reuse it as a trace.
         if [[ -f "$trace" ]]; then mv "$trace" "$trace.failed"; fi
         failed=1; continue
       fi
+    fi
+    if ! run python3 "$SCRIPT_DIR/validate_trace_cache.py" "$trace" "$workload" "$seed" "$REQUESTS" "$keys"; then
+      failed=1; continue
     fi
     if run "$BIN_DIR/clache_sim" --trace "$trace" --policies "$POLICIES" --capacity-fractions "$CAPACITY_FRACTIONS" --warmup-fraction "$WARMUP_FRACTION" --domain-by "$DOMAIN_BY" --jobs "$JOBS" --out "$output"; then
       results+=("$output")

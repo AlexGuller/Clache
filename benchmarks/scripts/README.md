@@ -23,8 +23,21 @@ configurable. Regional runs default to the shared-domain experiment; set
 shared domain requires a separate capacity-scaled run as described in Spec §14.5.
 
 Dry runs print commands without creating directories, traces, results, or env.json.
-Existing traces are reused: select a fresh `TRACE_DIR` when changing generation
-parameters. Failed generation files are renamed `.failed` so they cannot be reused.
+Before reusing a trace, the matrix requires a readable `<trace>.meta.json` whose
+workload, seed, request count, and requested catalogue size match the current run.
+It checks both top-level seed/request count and their `params` values, using
+`VARIABLE_SIZE_KEYS` for the variable-size workload. Missing, malformed or
+incompatible sidecars fail that experiment before replay. Existing data is left
+untouched; select a fresh `TRACE_DIR` or explicitly replace the stale trace and
+sidecar. An orphan sidecar also prevents generation from overwriting it.
+
+This is an identity check, not a payload integrity check: it does not recompute the
+trace fingerprint or detect tampering/truncation with unchanged metadata. The trace
+reader still validates the format during replay. Git SHA differences alone do not
+invalidate a trace, since unrelated source changes need not change generation.
+Only the four requested generation settings above are compared; after changing
+other generator defaults or semantics, select a fresh `TRACE_DIR`. Dry runs print
+the validation command but do not read sidecars. Failed generation files are renamed `.failed` so they cannot be reused.
 Failures are logged, subsequent experiments continue, and the script ultimately
 returns nonzero. Only successful simulator outputs enter the report. Each run
 captures CPU, OS, Git SHA, CMake compiler/flags (when available), and parameters in
