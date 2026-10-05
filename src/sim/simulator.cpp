@@ -116,6 +116,7 @@ Result replay(const Trace& t, const Options& o, const std::string& policy, std::
   r.policy = policy;
   r.domain = domain;
   r.capacity = capacity;
+  r.replayed_records = indices.size();
   r.capacity_fraction = capacity_fraction;
   const auto config = effective(o, policy, capacity);
   r.fingerprint = fingerprint(config, o, policy, expected_entries);
@@ -336,6 +337,7 @@ std::vector<Result> simulate(const Trace& trace, const TraceStats& stats, const 
       const auto& r = results[j];
       merge_metrics(all.metrics, r.metrics);
       add(all.warmup_requests, r.warmup_requests);
+      add(all.replayed_records, r.replayed_records);
       add(all.eviction_admits, r.eviction_admits);
       add(all.victims, r.victims);
       all.max_victims = std::max(all.max_victims, r.max_victims);

@@ -108,8 +108,8 @@ void write_results(std::ostream& out, const std::vector<Result>& results, const 
         << c.evictions << ',' << c.expirations << ',' << c.invalidations << ',' << c.size_changes
         << ',' << ratio(r.victims, r.eviction_admits) << ',' << r.max_victims << ','
         << r.metadata_peak << ',' << r.metadata_per_resident << ','
-        << (m.requests ? r.wall_seconds * 1e9 / static_cast<double>(m.requests) : 0) << ','
-        << r.wall_seconds << '\n';
+        << (r.replayed_records ? r.wall_seconds * 1e9 / static_cast<double>(r.replayed_records) : 0)
+        << ',' << r.wall_seconds << '\n';
   }
 }
 void export_oracle_general(const Trace& trace, const std::filesystem::path& path) {

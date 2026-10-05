@@ -125,3 +125,15 @@ python3 tests/integration/test_simulator.py build/debug/apps/clache_sim
 The Python checks exercise exact CSV schemas, regional time-series files, job-count
 independence, config precedence, stats sidecar, export bytes, source-path protection,
 and post-warm-up TTL/counter deltas. No CMake edits are needed for C++ source discovery.
+
+### Replay timing
+
+`wall_seconds` times the complete replay, including warm-up, GET, and DEL
+operations and simulator overhead. `ns_per_request` divides that time by all
+replayed records in the row's domain. The CSV `requests` column remains the
+post-warm-up GET count used for hit/cost metrics; it is not the timing denominator.
+A domain containing only deletes can therefore report nonzero operation latency.
+For regional `ALL` rows, elapsed times and replayed record counts are summed
+across domains before division. This is the weighted per-operation replay time,
+not the concurrent runs' elapsed makespan. An empty replay reports zero
+`ns_per_request`.

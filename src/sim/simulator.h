@@ -37,6 +37,8 @@ struct Interval {
 struct Result {
   std::string policy, domain;
   std::uint64_t capacity = 0, fingerprint = 0, warmup_requests = 0;
+  // All timed operations, including warm-up and deletes, in this domain.
+  std::uint64_t replayed_records = 0;
   Metrics metrics;
   EngineStats counters;
   std::uint64_t eviction_admits = 0, victims = 0, max_victims = 0, metadata_peak = 0;

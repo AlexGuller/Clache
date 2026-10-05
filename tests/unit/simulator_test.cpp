@@ -31,6 +31,52 @@ Options options() {
   o.warmup_fraction = 0;
   return o;
 }
+// Read the timing column by name so the regression exercises the CSV contract.
+double csv_ns_per_request(const Result& result, const TraceStats& stats, const Options& o) {
+  std::ostringstream output;
+  write_results(output, {result}, stats, o, 0);
+  std::istringstream lines(output.str());
+  std::string header, row;
+  std::getline(lines, header);
+  std::getline(lines, row);
+  std::istringstream columns(header), values(row);
+  std::string column, value;
+  while (std::getline(columns, column, ',') && std::getline(values, value, ',')) {
+    if (column == "ns_per_request") return std::stod(value);
+  }
+  throw std::runtime_error("missing timing column");
+}
+TEST(Simulator, ReplayTimingIncludesWarmupAndDeletesPerDomain) {
+  const auto t = trace({{0, 1, 1, 10, 0, 1},
+                        {1, 1, 0, 0, 0, 2, TraceOp::Del},
+                        {2, 2, 1, 10, 0, 1},
+                        {3, 2, 0, 0, 0, 1, TraceOp::Del},
+                        {4, 3, 0, 0, 0, 2, TraceOp::Del}});
+  auto o = options();
+  o.warmup_fraction = 0.4;
+  const auto stats = prepass(t);
+  auto whole = simulate(t, stats, o).at(0);
+  EXPECT_EQ(whole.replayed_records, 5U);
+  EXPECT_EQ(whole.metrics.requests, 1U);
+  EXPECT_EQ(whole.warmup_requests, 1U);
+  // Use a known elapsed time, avoiding assertions on wall-clock speed.
+  whole.wall_seconds = 0.005;
+  EXPECT_DOUBLE_EQ(csv_ns_per_request(whole, stats, o), 1000000.0);
+  o.regional = true;
+  const auto results = simulate(t, stats, o);
+  ASSERT_EQ(results.size(), 3U);
+  EXPECT_EQ(results[0].replayed_records, 3U);
+  EXPECT_EQ(results[1].replayed_records, 2U);
+  EXPECT_EQ(results[1].metrics.requests, 0U);
+  EXPECT_EQ(results[2].replayed_records, 5U);
+  EXPECT_DOUBLE_EQ(results[2].wall_seconds, results[0].wall_seconds + results[1].wall_seconds);
+  for (auto result : results) {
+    result.wall_seconds = 0.001 * static_cast<double>(result.replayed_records);
+    EXPECT_DOUBLE_EQ(csv_ns_per_request(result, stats, o), 1000000.0);
+  }
+  Result empty;
+  EXPECT_DOUBLE_EQ(csv_ns_per_request(empty, stats, o), 0.0);
+}
 TEST(Simulator, TinyLfuSketchUsesTraceSizesAndChargedOverhead) {
   auto o = options();
   o.policies = {"wtinylfu"};
