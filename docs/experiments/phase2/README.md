@@ -15,7 +15,7 @@ GDSF payload capacity at5% or20% plus its reported sampled metadata peak.
 Selection considers budget slack only; final selected capacities are
 replayed. All30 rows satisfy the target within1%; this is not exact RAM:
 allocation omissions and unsampled peaks remain. Full method is on
-feat/modeled-memory-evaluation in docs/modeled-memory-evaluation.md.
+feat/modeled-memory-evaluation in benchmarks/scripts/MODELED_MEMORY.md.
 
 Policies use engine RNG seed0; trace seeds control generator randomness.
 The candidate is frozen in docs/policy-diagnostics-plan.md. Fresh-seed

@@ -22,6 +22,15 @@ def assemble(source, output):
             raise ValueError(f'Expected one trace sidecar: {folder}')
         meta = json.loads(metadata_paths[0].read_text())
         workload, seed = meta['workload'], meta['seed']
+        manifest = json.loads((folder / 'manifest.json').read_text())
+        cases = {case['name']: case for case in manifest['cases']}
+        if set(cases) != {'baseline', 'selected'}:
+            raise ValueError('Unexpected case list')
+        if cases['selected'].get('overrides') != ['clache.frequency.decay_tau_seconds=900']:
+            raise ValueError('Selected configuration changed after locking')
+        trace_summary = json.loads((folder / 'trace-summary.json').read_text())
+        if trace_summary['records'] != 10000000:
+            raise ValueError('Incomplete trace summary')
         if meta['request_count'] != 10000000:
             raise ValueError('Wrong trace length')
         if int(meta['params']['keys']) != (200000 if workload == 'variable_size' else 1000000):
