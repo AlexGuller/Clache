@@ -46,8 +46,9 @@ selected explicitly.
   peak), and takes the maximum regional bytes/resident ratio. These choices make
   the memory summaries deterministic without synchronizing engines.
 - Wall time covers replay including warm-up, deletes and simulator overhead.
-  `ns_per_request` divides this by measured GET count. ALL wall time sums regional
-  replay durations (CPU work approximation), rather than reporting pool elapsed time.
+  `ns_per_request` divides this by all replayed records, including warm-up and DEL.
+  ALL rows sum regional replay durations and record counts before division; they
+  do not report pool elapsed time.
 - Regional engines each receive the displayed full capacity. ALL rows retain that
   per-region capacity; total allocated cache capacity is capacity times region count.
   Ratios and mean victims aggregate numerators/denominators, never averages of ratios.
