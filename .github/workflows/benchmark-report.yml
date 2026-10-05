@@ -1,0 +1,45 @@
+name: Recover benchmark report
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Run containing the 16 completed result artifacts
+        required: true
+        default: '37340591332'
+  push:
+    branches: [feat/cloud-benchmarks]
+    paths:
+      - .github/workflows/benchmark-report.yml
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  report:
+    if: vars.BENCHMARK_ZERO_COST_CONFIRMED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source_run || '37340591332' }}
+          pattern: results-*
+          path: collected
+      - name: Validate and report existing simulations
+        run: |
+          python3 -m venv /tmp/report-env
+          /tmp/report-env/bin/pip install matplotlib
+          /tmp/report-env/bin/python benchmarks/scripts/check_cloud_results.py collected
+          /tmp/report-env/bin/python benchmarks/scripts/report.py collected/results-*/*-seed*.csv --out report
+          echo 'Recovered all 480 simulations from existing artifacts. No simulations were rerun. Download policy-report for raw data, tables, and plots.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: policy-report
+          path: |
+            report/
+            collected/
+          retention-days: 1
